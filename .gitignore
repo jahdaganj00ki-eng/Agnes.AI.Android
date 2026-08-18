@@ -1,0 +1,17 @@
+# Local environment / secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Generated test output
+agnes-image-service/test/output.png
+
+# Android (never commit secrets or build output)
+android-app/local.properties
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/.idea/
+android-app/*.iml
+*.apk
+*.aab

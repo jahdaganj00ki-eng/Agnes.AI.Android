@@ -1,0 +1,14 @@
+{
+  "name": "agnes-image-service",
+  "version": "1.0.0",
+  "description": "Reference implementation of the Agnes 'Edit Image' workflow mapped to the Agnes AI gateway (agnes-2.5-flash + agnes-image-2.1-flash).",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node test/edit-image.test.js"
+  }
+}
