@@ -6,6 +6,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,22 +26,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -62,15 +70,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agnes.editimage.ui.theme.AppBackground
 import com.agnes.editimage.ui.theme.CardBackground
@@ -80,8 +93,8 @@ import com.agnes.editimage.ui.theme.SparkleCyan
 import com.agnes.editimage.ui.theme.TealBadge
 import com.agnes.editimage.ui.theme.TextMuted
 import com.agnes.editimage.ui.theme.TextPrimary
-import com.agnes.editimage.ui.theme.UserBubble
 import com.agnes.editimage.util.decodeBitmap
+import com.agnes.editimage.util.fetchBytes
 import com.agnes.editimage.util.saveToGallery
 import kotlinx.coroutines.launch
 
@@ -96,10 +109,12 @@ fun EditImageScreen(viewModel: EditImageViewModel, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var fullscreenBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showUrlDialog by remember { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri -> if (uri != null) viewModel.attachImage(uri) }
+        ActivityResultContracts.PickMultipleVisualMedia(10)
+    ) { uris -> if (uris.isNotEmpty()) viewModel.addImages(uris) }
 
     fun launchPicker() {
         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -108,16 +123,23 @@ fun EditImageScreen(viewModel: EditImageViewModel, onOpenSettings: () -> Unit) {
     Scaffold(
         containerColor = AppBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = { AppHeader(title = state.title, onMenu = onOpenSettings) },
+        topBar = {
+            AppHeader(
+                title = state.title,
+                onMenu = onOpenSettings,
+                onNewChat = viewModel::reset,
+            )
+        },
         bottomBar = {
             Column {
-                ActionPills()
+                ActionPills(mode = state.mode, onMode = viewModel::setMode)
                 InputBar(
                     input = state.input,
                     onInput = viewModel::setInput,
-                    attachedBytes = state.attachedImage,
+                    attachments = state.attachments,
                     onAttach = ::launchPicker,
-                    onClearAttachment = viewModel::clearAttachment,
+                    onAddUrl = { showUrlDialog = true },
+                    onRemoveAttachment = viewModel::removeAttachment,
                     onSend = viewModel::submit,
                 )
             }
@@ -142,18 +164,25 @@ fun EditImageScreen(viewModel: EditImageViewModel, onOpenSettings: () -> Unit) {
                     is ChatItem.AssistantText -> AssistantTextItem(item)
                     is ChatItem.PromptEnhancement -> PromptEnhancementItem(item)
                     is ChatItem.StatusBanner -> StatusBannerItem(item)
-                    is ChatItem.ResultImage -> ResultImageItem(item, onDownload = { bytes ->
-                        val bmp = decodeBitmap(bytes)
-                        if (bmp != null) {
-                            val saved = saveToGallery(context, bmp)
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    if (saved) "Bild gespeichert" else "Speichern fehlgeschlagen"
-                                )
+                    is ChatItem.ResultImage -> ResultImageItem(
+                        item = item,
+                        onDownload = { bytes ->
+                            val bmp = decodeBitmap(bytes)
+                            if (bmp != null) {
+                                val saved = saveToGallery(context, bmp)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (saved) "Bild gespeichert" else "Speichern fehlgeschlagen"
+                                    )
+                                }
+                                viewModel.markSaved()
                             }
-                            viewModel.markSaved()
-                        }
-                    })
+                        },
+                        onContinue = { viewModel.useAsInput(item.bytes) },
+                        onZoom = {
+                            decodeBitmap(item.bytes)?.let { fullscreenBitmap = it }
+                        },
+                    )
                     is ChatItem.Error -> ErrorItem(item)
                 }
             }
@@ -162,10 +191,21 @@ fun EditImageScreen(viewModel: EditImageViewModel, onOpenSettings: () -> Unit) {
             }
         }
     }
+
+    fullscreenBitmap?.let { bmp ->
+        FullscreenImageDialog(bitmap = bmp, onDismiss = { fullscreenBitmap = null })
+    }
+
+    if (showUrlDialog) {
+        UrlInputDialog(
+            onConfirm = { viewModel.addImageUrl(it); showUrlDialog = false },
+            onDismiss = { showUrlDialog = false },
+        )
+    }
 }
 
 @Composable
-private fun AppHeader(title: String, onMenu: () -> Unit) {
+private fun AppHeader(title: String, onMenu: () -> Unit, onNewChat: () -> Unit) {
     Surface(color = AppBackground) {
         Row(
             modifier = Modifier
@@ -176,20 +216,17 @@ private fun AppHeader(title: String, onMenu: () -> Unit) {
             IconButton(onClick = onMenu) {
                 Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = TextPrimary)
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "Generated by AI",
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                )
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onNewChat) {
+                Icon(Icons.Filled.Add, contentDescription = "Neuer Chat", tint = TextPrimary)
             }
         }
     }
@@ -221,12 +258,12 @@ private fun EmptyState(onPick: () -> Unit) {
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = UserBubble,
+            color = Color.White,
             onClick = onPick,
         ) {
             Text(
                 "Bild auswählen",
-                color = Color.White,
+                color = Color.Black,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
@@ -240,26 +277,80 @@ private fun UserMessageItem(item: ChatItem.UserMessage) {
     Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
         Surface(
             shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
-            color = UserBubble,
+            color = Color.White,
         ) {
             Text(
                 item.text,
-                color = Color.White,
+                color = Color.Black,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
-        val bmp = rememberBitmap(item.imageBytes)
-        if (bmp != null) {
+        if (item.images.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Image(
-                bitmap = bmp.asImageBitmap(),
-                contentDescription = "Bild",
-                modifier = Modifier
-                    .size(width = 140.dp, height = 180.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Crop,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (att in item.images) {
+                    UserImageThumb(att)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserImageThumb(att: Attachment) {
+    AttachmentImage(
+        att = att,
+        modifier = Modifier
+            .size(width = 140.dp, height = 180.dp)
+            .clip(RoundedCornerShape(16.dp)),
+        contentScale = ContentScale.Crop,
+    )
+}
+
+@Composable
+private fun AttachmentImage(
+    att: Attachment,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+) {
+    when (att) {
+        is Attachment.Local -> {
+            val bmp = rememberBitmap(att.bytes)
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = "Bild",
+                    modifier = modifier,
+                    contentScale = contentScale,
+                )
+            }
+        }
+        is Attachment.Remote -> {
+            var bytes by remember(att.url) { mutableStateOf<ByteArray?>(null) }
+            LaunchedEffect(att.url) {
+                bytes = try {
+                    fetchBytes(att.url)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            val bmp = rememberBitmap(bytes)
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = "Bild",
+                    modifier = modifier,
+                    contentScale = contentScale,
+                )
+            } else {
+                Box(
+                    modifier = modifier.background(CardBackground2),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Image, contentDescription = null, tint = TextMuted)
+                }
+            }
         }
     }
 }
@@ -319,10 +410,10 @@ private fun SkillRow(skill: LoadedSkill) {
                 Spacer(Modifier.width(8.dp))
                 Text("Load Skill", color = TextPrimary, fontSize = 13.sp)
                 Spacer(Modifier.width(8.dp))
-                Surface(shape = RoundedCornerShape(6.dp), color = TealBadge) {
+                Surface(shape = RoundedCornerShape(6.dp), color = Color.White) {
                     Text(
                         skill.badge,
-                        color = Color(0xFF00332E),
+                        color = Color.Black,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -362,9 +453,9 @@ private fun PromptEnhancementItem(item: ChatItem.PromptEnhancement) {
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = SparkleCyan, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = SparkleCyan, modifier = Modifier.size(14.dp))
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Prompt Enhancement", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
@@ -408,7 +499,11 @@ private fun StatusBannerItem(item: ChatItem.StatusBanner) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = SparkleCyan)
+            if (item.active) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = SparkleCyan)
+            } else {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = TealBadge, modifier = Modifier.size(16.dp))
+            }
             Spacer(Modifier.width(10.dp))
             Text(item.text, color = TextMuted, fontSize = 13.sp)
         }
@@ -416,7 +511,12 @@ private fun StatusBannerItem(item: ChatItem.StatusBanner) {
 }
 
 @Composable
-private fun ResultImageItem(item: ChatItem.ResultImage, onDownload: (ByteArray) -> Unit) {
+private fun ResultImageItem(
+    item: ChatItem.ResultImage,
+    onDownload: (ByteArray) -> Unit,
+    onContinue: () -> Unit,
+    onZoom: () -> Unit,
+) {
     val bmp = rememberBitmap(item.bytes)
     if (bmp != null) {
         Box {
@@ -428,19 +528,46 @@ private fun ResultImageItem(item: ChatItem.ResultImage, onDownload: (ByteArray) 
                     .clip(RoundedCornerShape(16.dp)),
                 contentScale = ContentScale.Fit,
             )
-            Surface(
-                shape = CircleShape,
-                color = Color.White,
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .size(44.dp),
-                onClick = { onDownload(item.bytes) },
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Download, contentDescription = "Herunterladen", tint = Color.Black)
-                }
+                ResultActionButton(
+                    icon = Icons.Filled.Edit,
+                    contentDescription = "Weiter bearbeiten",
+                    onClick = onContinue,
+                )
+                ResultActionButton(
+                    icon = Icons.Filled.Fullscreen,
+                    contentDescription = "Vollbild",
+                    onClick = onZoom,
+                )
+                ResultActionButton(
+                    icon = Icons.Filled.Download,
+                    contentDescription = "Herunterladen",
+                    onClick = { onDownload(item.bytes) },
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ResultActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = CircleShape,
+        color = Color.White,
+        modifier = Modifier.size(44.dp),
+        onClick = onClick,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = contentDescription, tint = Color.Black)
         }
     }
 }
@@ -462,6 +589,55 @@ private fun ErrorItem(item: ChatItem.Error) {
 }
 
 @Composable
+private fun FullscreenImageDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+            val newScale = (scale * zoomChange).coerceIn(1f, 6f)
+            scale = newScale
+            offset = if (newScale <= 1f) Offset.Zero else offset + panChange
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Ergebnis Vollbild",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y,
+                    )
+                    .transformable(transformState),
+                contentScale = ContentScale.Fit,
+            )
+            Surface(
+                shape = CircleShape,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(44.dp),
+                onClick = onDismiss,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Close, contentDescription = "Schließen", tint = Color.Black)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun BusyRow() {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -474,7 +650,7 @@ private fun BusyRow() {
 }
 
 @Composable
-private fun ActionPills() {
+private fun ActionPills(mode: String, onMode: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -482,25 +658,61 @@ private fun ActionPills() {
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Pill(icon = Icons.Filled.Image, label = "to Video", selected = false)
-        Pill(icon = Icons.Filled.Image, label = "Edit Image", selected = true)
-        Pill(icon = Icons.Filled.Palette, label = "Photo design", selected = false)
+        Pill(icon = Icons.Filled.Image, label = "Edit Image", selected = mode == "edit", onClick = { onMode("edit") })
+        Pill(icon = Icons.Filled.Person, label = "Full Body", selected = mode == "full_body", onClick = { onMode("full_body") })
+        Pill(icon = Icons.Filled.Palette, label = "Try-On", selected = false, onClick = null)
+        Pill(icon = Icons.Filled.AutoFixHigh, label = "Enhance", selected = mode == "enhance", onClick = { onMode("enhance") })
+        Pill(icon = Icons.Filled.DarkMode, label = "Black BG", selected = mode == "black_bg", onClick = { onMode("black_bg") })
     }
 }
 
 @Composable
-private fun Pill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) UserBubble else CardBackground,
-    ) {
+private fun Pill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: (() -> Unit)?,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    val color = if (selected) Color.White else CardBackground
+    val content: @Composable () -> Unit = {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = if (selected) Color.White else TextMuted, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = if (selected) Color.Black else TextMuted, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(label, color = if (selected) Color.White else TextPrimary, fontSize = 13.sp)
+            Text(label, color = if (selected) Color.Black else TextPrimary, fontSize = 13.sp)
+        }
+    }
+    if (onClick != null) {
+        Surface(shape = shape, color = color, onClick = onClick) { content() }
+    } else {
+        Surface(shape = shape, color = color) { content() }
+    }
+}
+
+@Composable
+private fun AttachmentThumb(att: Attachment, onRemove: () -> Unit) {
+    Box {
+        AttachmentImage(
+            att = att,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(10.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        Surface(
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.6f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(20.dp),
+            onClick = onRemove,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Close, contentDescription = "Entfernen", tint = Color.White, modifier = Modifier.size(12.dp))
+            }
         }
     }
 }
@@ -509,28 +721,23 @@ private fun Pill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: S
 private fun InputBar(
     input: String,
     onInput: (String) -> Unit,
-    attachedBytes: ByteArray?,
+    attachments: List<Attachment>,
     onAttach: () -> Unit,
-    onClearAttachment: () -> Unit,
+    onAddUrl: () -> Unit,
+    onRemoveAttachment: (Int) -> Unit,
     onSend: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-        val attachedBmp = rememberBitmap(attachedBytes)
-        if (attachedBmp != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
-                Image(
-                    bitmap = attachedBmp.asImageBitmap(),
-                    contentDescription = "Anhang",
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(10.dp)),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Bild angehängt – beschreibe die Änderung.", color = TextMuted, fontSize = 12.sp)
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onClearAttachment, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Entfernen", tint = TextMuted, modifier = Modifier.size(18.dp))
+        if (attachments.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for ((index, att) in attachments.withIndex()) {
+                    AttachmentThumb(att = att, onRemove = { onRemoveAttachment(index) })
                 }
             }
         }
@@ -543,6 +750,9 @@ private fun InputBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onAttach) {
                     Icon(Icons.Filled.Add, contentDescription = "Bild hinzufügen", tint = TextPrimary)
+                }
+                IconButton(onClick = onAddUrl) {
+                    Icon(Icons.Filled.Link, contentDescription = "Bild per URL hinzufügen", tint = TextPrimary)
                 }
                 TextField(
                     value = input,
@@ -560,11 +770,84 @@ private fun InputBar(
                         focusedTextColor = TextPrimary,
                         unfocusedTextColor = TextPrimary,
                     ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { onSend() }),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 )
                 IconButton(onClick = onSend) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Senden", tint = TextPrimary)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Senden", tint = TextPrimary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UrlInputDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = CardBackground,
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Bild per URL hinzufügen",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("https://…", color = TextMuted) },
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = CardBackground2,
+                        unfocusedContainerColor = CardBackground2,
+                        disabledContainerColor = CardBackground2,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        cursorColor = TextPrimary,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CardBackground2,
+                        modifier = Modifier.weight(1f),
+                        onClick = onDismiss,
+                    ) {
+                        Text(
+                            "Abbrechen",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White,
+                        modifier = Modifier.weight(1f),
+                        onClick = { if (text.isNotBlank()) onConfirm(text.trim()) },
+                    ) {
+                        Text(
+                            "Hinzufügen",
+                            color = Color.Black,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+                    }
                 }
             }
         }

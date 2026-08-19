@@ -83,12 +83,14 @@ class AgnesApi(
         prompt: String,
         size: String,
         ratio: String,
-        imageDataUri: String?,
+        imageDataUris: List<String>,
         responseFormat: String = "b64_json",
     ): GeneratedImage {
         val extra = JSONObject().put("response_format", responseFormat)
-        if (imageDataUri != null) {
-            extra.put("image", JSONArray().put(imageDataUri))
+        if (imageDataUris.isNotEmpty()) {
+            val images = JSONArray()
+            imageDataUris.forEach { images.put(it) }
+            extra.put("image", images)
         }
         val body = JSONObject()
             .put("model", model)

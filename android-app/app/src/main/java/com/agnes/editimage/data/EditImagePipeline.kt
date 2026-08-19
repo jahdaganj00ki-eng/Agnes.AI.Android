@@ -21,24 +21,29 @@ Preserve the original aspect ratio, body proportions, identity, face, pose,
 clothing that is not mentioned, background, lighting, and composition."""
 
     const val REFERENCE_IMAGE = """You are the "reference-image" skill.
-The input image is the single source of truth (reference). The output must keep
-the same person identity, same body shape and proportions, same camera angle and
-same framing as the reference. Only apply the requested edit on top of it.
-Do not invent new elements, do not crop, and do not change the aspect ratio."""
+The input image(s) are the single source of truth (reference). The output must
+keep the same person identity, same face, same body shape and proportions, same
+camera angle and same framing as the references. Only apply the requested edit
+on top of them. Do not invent new elements, do not crop, and do not change the
+aspect ratio."""
 
     const val PROMPT_CRAFT = """You are the "image-prompt-craft" skill.
-Analyse the attached image and the user's edit instruction, then rewrite the
+Analyse the attached image(s) and the user's edit instruction, then rewrite the
 instruction into ONE precise, self-contained English edit prompt for an
 image-to-image model. The user may write in English or German.
+If several images are provided, they show the SAME person wearing the SAME
+outfit: use them together to pin down the person's exact identity features
+(face, hair, skin, body shape and proportions, clothing) so the output matches
+the references faithfully.
 
 Also write a short German confirmation sentence telling the user what will be
 changed (use informal "du", keep it to one sentence).
 
 Return STRICT JSON only, no markdown, with exactly these keys:
 {
-  "analysis": "short description of what is visible in the image",
-  "edit_prompt": "the precise English edit instruction",
-  "preserve": "explicit list of everything that must stay unchanged, including aspect ratio and body proportions",
+  "analysis": "short description of what is visible in the image(s)",
+  "edit_prompt": "the precise English edit instruction, explicitly preserving the person's identity, face, body proportions and clothing",
+  "preserve": "explicit list of everything that must stay unchanged, including the person's identity, face, body proportions, clothing and aspect ratio",
   "reply_de": "short German confirmation sentence"
 }"""
 }
@@ -78,16 +83,18 @@ private fun extractJson(text: String): JSONObject {
 
 suspend fun analyzeAndEnhance(
     api: AgnesApi,
-    imageDataUri: String,
+    imageDataUris: List<String>,
     userPrompt: String,
 ): Analysis {
     val userContent = JSONArray()
         .put(JSONObject().put("type", "text").put("text", "User edit instruction:\n\"\"\"\n$userPrompt\n\"\"\""))
-        .put(
+    for (uri in imageDataUris) {
+        userContent.put(
             JSONObject()
                 .put("type", "image_url")
-                .put("image_url", JSONObject().put("url", imageDataUri))
+                .put("image_url", JSONObject().put("url", uri))
         )
+    }
 
     val raw = api.chat(
         model = ANALYSIS_MODEL,
@@ -105,37 +112,86 @@ suspend fun analyzeAndEnhance(
     )
 }
 
+private const val MAX_CONTENT_POLICY_RETRIES = 4
+
+private fun isContentPolicyViolation(e: Throwable): Boolean =
+    e.message?.contains("content_policy_violation", ignoreCase = true) == true
+
+/**
+ * Progressively soften a prompt the image model rejected as a content policy
+ * violation. Each level asks for a slightly more conservative result so the
+ * requested edit still happens while removing whatever triggered the filter.
+ */
+private fun softenPrompt(prompt: String, level: Int): String = when (level) {
+    1 -> "$prompt\n\nKeep the result tasteful and modest; the subject should remain appropriately covered."
+    2 -> "$prompt\n\nMake the result tasteful, modest, and fully clothed, with no revealing or suggestive elements."
+    3 -> "$prompt\n\nRender a conservative, tasteful, family-friendly version. Keep the subject fully clothed and avoid any skin exposure beyond the face, hands, and neckline."
+    else -> "Create a modest, tasteful, fully-clothed version of the requested edit, appropriate for all audiences. Original instruction: $prompt"
+}
+
 suspend fun generateEdit(
     api: AgnesApi,
-    imageDataUri: String,
+    imageDataUris: List<String>,
     analysis: Analysis,
     ratio: String,
     size: String,
+    mode: String,
 ): ByteArray {
     val preserveClause = if (analysis.preserve.isNotBlank()) {
         " (in particular: ${analysis.preserve})"
     } else {
         ""
     }
+    val identityClause = if (imageDataUris.size > 1) {
+        "The subject must look exactly like the person in the provided reference images: same face, " +
+            "same identity, same hair, same body shape and proportions, and the same clothing. " +
+            "Use all reference images together to reconstruct the person faithfully."
+    } else {
+        "The subject must look exactly like the person in the reference image: same face, same identity, " +
+            "same body shape and proportions, and the same clothing."
+    }
+    val modeClause = when (mode) {
+        "full_body" -> " Render the person's full body from head to toe, keeping a full-body framing."
+        "enhance" -> " Enhance the image to maximum quality: restore and sharpen fine details, reduce noise, " +
+            "artifacts and blur, and improve clarity, lighting and skin texture. Remove any errors or defects. " +
+            "Keep it fully photorealistic — do NOT apply a comic, cartoon, illustration, painting or sketch style. " +
+            "Preserve the person's identity, face, body proportions, clothing and background exactly."
+        "black_bg" -> " Make the background completely solid black (pure black), with no other elements, objects, " +
+            "gradients or edges visible. Keep the subject fully unchanged: same person, same face, same body " +
+            "proportions, same clothing, same pose and same lighting on the subject."
+        else -> ""
+    }
     val finalPrompt =
         "${analysis.editPrompt}\n\n" +
-            "Preserve everything that is not explicitly mentioned in this instruction$preserveClause. " +
+            identityClause +
+            modeClause +
+            " Preserve everything that is not explicitly mentioned in this instruction$preserveClause. " +
             "Do not change the person's identity, face, pose, body proportions, other clothing, background, " +
             "lighting, or composition unless the instruction explicitly asks for it. " +
             "Keep the original aspect ratio and proportions exactly — do not stretch, squash, widen, or narrow " +
             "the subject or the background.\n\n${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
 
-    val result = api.generateImage(
-        model = EDIT_MODEL,
-        prompt = finalPrompt,
-        size = size,
-        ratio = ratio,
-        imageDataUri = imageDataUri,
-        responseFormat = "b64_json",
-    )
-
-    val b64 = result.b64 ?: throw Exception("Image API returned no image data")
-    return android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+    for (attempt in 0..MAX_CONTENT_POLICY_RETRIES) {
+        val prompt = if (attempt == 0) finalPrompt else softenPrompt(finalPrompt, attempt)
+        try {
+            val result = api.generateImage(
+                model = EDIT_MODEL,
+                prompt = prompt,
+                size = size,
+                ratio = ratio,
+                imageDataUris = imageDataUris,
+                responseFormat = "b64_json",
+            )
+            val b64 = result.b64 ?: throw Exception("Image API returned no image data")
+            return android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            if (attempt < MAX_CONTENT_POLICY_RETRIES && isContentPolicyViolation(e)) {
+                continue
+            }
+            throw e
+        }
+    }
+    throw Exception("Image editing failed after multiple attempts")
 }
 
 /** Map pixel dimensions to the closest ratio supported by the image model. */
