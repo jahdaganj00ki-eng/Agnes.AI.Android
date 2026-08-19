@@ -8,6 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 fun readBytes(context: Context, uri: Uri): ByteArray {
     return context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
@@ -64,5 +69,16 @@ fun saveToGallery(context: Context, bitmap: Bitmap): Boolean {
         ok
     } catch (_: Exception) {
         false
+    }
+}
+
+suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
+    val client = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
+    client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+        if (!resp.isSuccessful) throw Exception("HTTP ${resp.code}")
+        resp.body?.bytes() ?: ByteArray(0)
     }
 }

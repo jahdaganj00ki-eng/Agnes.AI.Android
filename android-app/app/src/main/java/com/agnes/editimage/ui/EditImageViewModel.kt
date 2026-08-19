@@ -21,12 +21,17 @@ import kotlinx.coroutines.launch
 
 data class LoadedSkill(val badge: String, val chars: Int)
 
+sealed interface Attachment {
+    data class Local(val bytes: ByteArray, val mime: String) : Attachment
+    data class Remote(val url: String) : Attachment
+}
+
 sealed interface ChatItem {
-    data class UserMessage(val text: String, val imageBytes: ByteArray?) : ChatItem
+    data class UserMessage(val text: String, val images: List<Attachment>) : ChatItem
     data class ThoughtGroup(val durationSeconds: String, val skills: List<LoadedSkill>, val expanded: Boolean) : ChatItem
     data class AssistantText(val text: String) : ChatItem
     data class PromptEnhancement(val original: String, val enhanced: String) : ChatItem
-    data class StatusBanner(val text: String) : ChatItem
+    data class StatusBanner(val text: String, val active: Boolean = true) : ChatItem
     data class ResultImage(val bytes: ByteArray) : ChatItem
     data class Error(val message: String) : ChatItem
 }
@@ -35,8 +40,8 @@ data class UiState(
     val items: List<ChatItem> = emptyList(),
     val busy: Boolean = false,
     val input: String = "",
-    val attachedImage: ByteArray? = null,
-    val attachedMime: String = "image/jpeg",
+    val attachments: List<Attachment> = emptyList(),
+    val mode: String = "edit",
     val title: String = "Edit Image",
     val apiKeyConfigured: Boolean = false,
     val savedApiKey: String = "",
@@ -63,21 +68,43 @@ class EditImageViewModel(app: Application) : AndroidViewModel(app) {
     )
     val state: StateFlow<UiState> = _state
 
-    fun attachImage(uri: Uri) {
-        val bytes = readBytes(getApplication(), uri)
-        if (bytes.isNotEmpty()) {
+    fun addImages(uris: List<Uri>) {
+        val added = uris.mapNotNull { uri ->
+            val bytes = readBytes(getApplication(), uri)
+            if (bytes.isEmpty()) return@mapNotNull null
             val mime = getApplication<Application>().contentResolver.getType(uri)
                 ?: "image/jpeg"
-            _state.update { it.copy(attachedImage = bytes, attachedMime = mime) }
+            Attachment.Local(bytes, mime)
         }
+        if (added.isNotEmpty()) {
+            _state.update { it.copy(attachments = it.attachments + added) }
+        }
+    }
+
+    fun addImageUrl(url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return
+        _state.update { it.copy(attachments = it.attachments + Attachment.Remote(trimmed)) }
     }
 
     fun setInput(text: String) {
         _state.update { it.copy(input = text) }
     }
 
-    fun clearAttachment() {
-        _state.update { it.copy(attachedImage = null) }
+    fun removeAttachment(index: Int) {
+        _state.update {
+            val list = it.attachments.toMutableList()
+            if (index in list.indices) list.removeAt(index)
+            it.copy(attachments = list)
+        }
+    }
+
+    fun useAsInput(bytes: ByteArray) {
+        _state.update { it.copy(attachments = listOf(Attachment.Local(bytes, "image/png"))) }
+    }
+
+    fun setMode(mode: String) {
+        _state.update { it.copy(mode = mode) }
     }
 
     fun reset() {
@@ -90,27 +117,28 @@ class EditImageViewModel(app: Application) : AndroidViewModel(app) {
 
     fun submit() {
         val s = _state.value
-        val image = s.attachedImage ?: return
+        if (s.attachments.isEmpty()) return
         val prompt = s.input.trim()
         if (prompt.isEmpty() || s.busy) return
 
+        val images = s.attachments
         val base = s.items.size
         val items = s.items.toMutableList()
         val skillLoads = SKILLS.map { LoadedSkill(it.badge, it.content.length) }
 
-        items += ChatItem.UserMessage(prompt, image)                 // base + 0
-        items += ChatItem.ThoughtGroup("…", emptyList(), expanded = false)  // base + 1
-        items += ChatItem.AssistantText("")                          // base + 2
-        items += ChatItem.ThoughtGroup("…", skillLoads, expanded = true)    // base + 3
+        items += ChatItem.UserMessage(prompt, images)                 // base + 0
+        items += ChatItem.ThoughtGroup("…", emptyList(), expanded = false)  // base + 1 (analysis)
+        items += ChatItem.ThoughtGroup("…", skillLoads, expanded = true)    // base + 2 (skills)
+        items += ChatItem.AssistantText("")                          // base + 3 (reply)
         items += ChatItem.PromptEnhancement(prompt, "")              // base + 4
-        items += ChatItem.StatusBanner("Das dauert etwa 15–45 Sekunden, bitte habe einen Moment Geduld.") // base + 5
+        items += ChatItem.StatusBanner("Das dauert etwa 15–45 Sekunden, bitte habe einen Moment Geduld.", active = true) // base + 5
 
         _state.update {
             it.copy(
                 items = items,
                 busy = true,
                 input = "",
-                attachedImage = null,
+                attachments = emptyList(),
                 title = prompt,
                 lastSaved = false,
             )
@@ -118,45 +146,56 @@ class EditImageViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
-                val imageDataUri = "data:${s.attachedMime};base64," +
-                    Base64.encodeToString(image, Base64.NO_WRAP)
+                val imageDataUris = s.attachments.map { att ->
+                    when (att) {
+                        is Attachment.Local -> "data:${att.mime};base64," +
+                            Base64.encodeToString(att.bytes, Base64.NO_WRAP)
+                        is Attachment.Remote -> att.url
+                    }
+                }
 
                 val t0 = SystemClock.elapsedRealtime()
-                val analysis = analyzeAndEnhance(api, imageDataUri, prompt)
+                val analysis = analyzeAndEnhance(api, imageDataUris, prompt)
                 val analysisSeconds = (SystemClock.elapsedRealtime() - t0) / 1000.0
 
                 _state.update { st ->
+                    if (st.items.size < base + 5) return@update st
                     val newItems = st.items.toMutableList()
                     newItems[base + 1] = ChatItem.ThoughtGroup(
                         durationSeconds = String.format("%.2f", analysisSeconds),
                         skills = emptyList(),
                         expanded = false,
                     )
-                    newItems[base + 2] = ChatItem.AssistantText(analysis.replyDe)
+                    newItems[base + 3] = ChatItem.AssistantText(analysis.replyDe)
                     newItems[base + 4] = ChatItem.PromptEnhancement(prompt, analysis.editPrompt)
                     st.copy(items = newItems)
                 }
 
                 val t1 = SystemClock.elapsedRealtime()
-                val dims = imageDimensions(image)
+                val firstLocal = s.attachments.filterIsInstance<Attachment.Local>().firstOrNull()?.bytes
+                val dims = firstLocal?.let { imageDimensions(it) }
                 val ratio = dims?.let { pickRatio(it.first, it.second) } ?: "3:4"
-                val resultBytes = generateEdit(api, imageDataUri, analysis, ratio, "2K")
+                val resultBytes = generateEdit(api, imageDataUris, analysis, ratio, "2K", s.mode)
                 val genSeconds = (SystemClock.elapsedRealtime() - t1) / 1000.0
 
                 _state.update { st ->
+                    if (st.items.size < base + 6) return@update st
                     val newItems = st.items.toMutableList()
-                    newItems[base + 3] = ChatItem.ThoughtGroup(
+                    newItems[base + 2] = ChatItem.ThoughtGroup(
                         durationSeconds = String.format("%.2f", genSeconds),
                         skills = skillLoads,
                         expanded = true,
                     )
+                    newItems[base + 5] = ChatItem.StatusBanner("Bearbeitung abgeschlossen.", active = false)
                     newItems += ChatItem.AssistantText("Ich habe die gewünschte Änderung vorgenommen.")
                     newItems += ChatItem.ResultImage(resultBytes)
                     st.copy(items = newItems, busy = false)
                 }
             } catch (e: Exception) {
                 _state.update { st ->
+                    if (st.items.size < base + 6) return@update st
                     val newItems = st.items.toMutableList()
+                    newItems[base + 5] = ChatItem.StatusBanner("Bearbeitung fehlgeschlagen.", active = false)
                     newItems += ChatItem.Error(e.message ?: "Unbekannter Fehler")
                     st.copy(items = newItems, busy = false)
                 }
