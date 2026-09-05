@@ -1,8 +1,9 @@
 # Agnes Edit – native Android App
 
-Native Android-App (Kotlin + Jetpack Compose) mit dem **Edit-Image**-Workflow
-aus den Referenz-Screenshots, angebunden an das Agnes-AI-Gateway
-(`https://apihub.agnes-ai.com/v1`).
+Native Android-App (Kotlin + Jetpack Compose) mit dem **Edit-Image**-Workflow der
+Agnes-App, angebunden an das Agnes-AI-Gateway
+(`https://apihub.agnes-ai.com/v1`). Die zugrunde liegende Analyse des
+Original-Workflows beschreibt [`../docs/agnes-edit-image-workflow.md`](../docs/agnes-edit-image-workflow.md).
 
 ## Workflow
 

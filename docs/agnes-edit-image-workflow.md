@@ -1,14 +1,18 @@
 # Agnes – Edit-Image-Workflow (Reverse Engineering)
 
-Dieses Dokument beschreibt, was in der Android-App **Agnes** (Split-APK
-`Agnes 3.0.33.apk+`, Paket `com.sobrr.agnes`) beim Bildbearbeiten tatsächlich
-passiert, und wie der Bildbearbeitungs-Workflow auf die Modelle aus
+Dieses Dokument beschreibt, was in der Android-App **Agnes** (Paket
+`com.sobrr.agnes`) beim Bildbearbeiten tatsächlich passiert, und wie der
+Bildbearbeitungs-Workflow auf die Modelle aus
 [`AgnesAI-Labs/AgnesAI-Models`](https://github.com/AgnesAI-Labs/AgnesAI-Models)
 umgestellt wird.
 
-> Hinweis: Die Datei im Repo heißt `Agnes 3.0.33.apk+` (`versionCode 3000033`,
-> `versionName 3.0.33`). Im Auftrag wird „3.0.47“ erwähnt – vermutlich eine
-> neuere Build-Nummer, aber das hier analysierte APK ist 3.0.33.
+> Hinweis: Grundlage der Analyse ist das Split-APK `Agnes 3.0.33.apk+`
+> (`versionCode 3000033`, `versionName 3.0.33`); erwähnt wird gelegentlich auch
+> eine neuere Build-Nummer 3.0.47. Beide APKs sowie die sechs
+> Referenz-Screenshots liegen **nicht mehr im Repo** – dieses Repo enthält keine
+> Binärdateien (`*.apk` ist gitignored), die APKs entstehen stattdessen als
+> Build-Artefakt. Die nachfolgend rekonstruierten Endpunkte, Skill-Namen und
+> UI-Texte stammen aus jener Analyse und bleiben unverändert gültig.
 
 ---
 
