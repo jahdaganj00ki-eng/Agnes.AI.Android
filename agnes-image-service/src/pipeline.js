@@ -35,6 +35,20 @@ exactly as it is. Never stretch, squash, widen, or narrow the subject.
 
 The user may write in English or German. Always respond in English JSON.
 
+POSE AND CAMERA RULES (apply to every rewrite, no exceptions):
+- The person must keep the same camera angle and framing as the reference
+  image(s). Never rotate the subject to a full side profile.
+- Keep the body turned only slightly to one side: about 25 to 35 degrees from
+  the camera. A full frontal pose is allowed only if the original is frontal.
+- Weight shift: let the weight rest softly on one leg with a natural, moderate
+  hip accent. No exaggerated hip thrust, no pronounced contrapposto, no
+  theatrical pose. A confident, elegant stance is fine.
+- Arms stay relaxed: at most ONE arm gesture (one hand near the hip, or lightly
+  touching the hair). Never use both arms at once — two simultaneous gestures
+  force the shoulders to twist and the body turns sideways.
+- Keep the face and gaze toward the camera with a confident, inviting
+  expression. A subtle smile is fine.
+
 Analyse the image first (subject, clothing, pose, background, lighting), then
 rewrite the user's instruction into ONE precise, self-contained English edit
 prompt for an image-to-image model. If the request is ambiguous, choose the
