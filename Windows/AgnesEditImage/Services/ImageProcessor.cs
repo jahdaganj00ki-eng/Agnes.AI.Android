@@ -20,7 +20,8 @@ public static class ImageProcessor
             var format = Image.DetectFormat(stream);
             if (format == null) return null;
 
-            using var image = Image.Load(format, stream);
+            stream.Seek(0, SeekOrigin.Begin);
+            using var image = Image.Load(stream);
             return (image.Width, image.Height);
         }
         catch

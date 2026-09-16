@@ -58,4 +58,11 @@ public static class Skills
         "  \"preserve\": \"explicit list of everything that must stay unchanged, including the person's identity, face, body proportions, clothing and aspect ratio\",\n" +
         "  \"reply_de\": \"short German confirmation sentence\"\n" +
         "}";
+
+    public static IEnumerable<SkillDef> All => new[]
+    {
+        new SkillDef("image-generation", IMAGE_GENERATION),
+        new SkillDef("reference-image", REFERENCE_IMAGE),
+        new SkillDef("prompt-craft", PROMPT_CRAFT)
+    };
 }

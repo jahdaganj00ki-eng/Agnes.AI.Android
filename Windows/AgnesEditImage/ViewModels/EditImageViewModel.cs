@@ -166,15 +166,15 @@ public partial class EditImageViewModel : ObservableObject
         if (prompt.Length == 0 || Busy) return;
 
         var images = Attachments.ToList();
-        var skillLoads = SkillCatalog.All.Select(s => new LoadedSkill(s.Badge, s.Content.Length)).ToList();
+        var skillLoads = Skills.All.Select(s => new LoadedSkill(s.Badge, s.Content.Length)).ToList();
 
         Items.Clear();
         Items.Add(new UserMessage(prompt, images));
-        Items.Add(new ThoughtGroup("…", skills: new List<LoadedSkill>(), expanded: false));
-        Items.Add(new ThoughtGroup("…", skillLoads, expanded: true));
+        Items.Add(new ThoughtGroup("…", Skills: new List<LoadedSkill>(), Expanded: false));
+        Items.Add(new ThoughtGroup("…", skillLoads, Expanded: true));
         Items.Add(new AssistantText(""));
         Items.Add(new PromptEnhancement(prompt, ""));
-        Items.Add(new StatusBanner("Das dauert etwa 15–45 Sekunden, bitte habe einen Moment Geduld.", active: true));
+        Items.Add(new StatusBanner("Das dauert etwa 15–45 Sekunden, bitte habe einen Moment Geduld.", Active: true));
 
         Busy = true;
         Input = "";
@@ -197,7 +197,7 @@ public partial class EditImageViewModel : ObservableObject
             var analysis = await EditImagePipeline.AnalyzeAndEnhanceAsync(_api, imageDataUris, prompt);
             var analysisSeconds = (Environment.TickCount - t0) / 1000.0;
 
-            Items[1] = new ThoughtGroup($"{analysisSeconds:F2}", skills: new List<LoadedSkill>(), expanded: false);
+            Items[1] = new ThoughtGroup($"{analysisSeconds:F2}", Skills: new List<LoadedSkill>(), Expanded: false);
             Items[3] = new AssistantText(analysis.ReplyDe);
             Items[4] = new PromptEnhancement(prompt, analysis.EditPrompt);
 
@@ -208,8 +208,8 @@ public partial class EditImageViewModel : ObservableObject
             var resultBytes = await EditImagePipeline.GenerateEditAsync(_api, imageDataUris, analysis, ratio, "2K", Mode);
             var genSeconds = (Environment.TickCount - t1) / 1000.0;
 
-            Items[2] = new ThoughtGroup($"{genSeconds:F2}", skillLoads, expanded: true);
-            Items[5] = new StatusBanner("Bearbeitung abgeschlossen.", active: false);
+            Items[2] = new ThoughtGroup($"{genSeconds:F2}", skillLoads, Expanded: true);
+            Items[5] = new StatusBanner("Bearbeitung abgeschlossen.", Active: false);
             Items.Add(new AssistantText("Ich habe die gewünschte Änderung vorgenommen."));
             Items.Add(new ResultImage(resultBytes));
         }
@@ -217,7 +217,7 @@ public partial class EditImageViewModel : ObservableObject
         {
             if (Items.Count > 5)
             {
-                Items[5] = new StatusBanner("Bearbeitung fehlgeschlagen.", active: false);
+                Items[5] = new StatusBanner("Bearbeitung fehlgeschlagen.", Active: false);
             }
             Items.Add(new ErrorItem(ex.Message ?? "Unbekannter Fehler"));
         }
