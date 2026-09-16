@@ -5,7 +5,6 @@ using System.Windows.Media.Imaging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp;
 
 namespace AgnesEditImage.Services;
 

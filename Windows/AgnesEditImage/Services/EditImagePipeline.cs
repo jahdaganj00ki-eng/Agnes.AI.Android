@@ -70,7 +70,7 @@ public static class EditImagePipeline
         var obj = ExtractJson(raw);
 
         return new Analysis(
-            Analysis: obj["analysis"]?.GetValue<string>() ?? string.Empty,
+            AnalysisText: obj["analysis"]?.GetValue<string>() ?? string.Empty,
             EditPrompt: obj["edit_prompt"]?.GetValue<string>() ?? string.Empty,
             Preserve: obj["preserve"]?.GetValue<string>() ?? string.Empty,
             ReplyDe: obj["reply_de"]?.GetValue<string>() ?? "Ich bearbeite das Bild entsprechend deiner Anweisung."
