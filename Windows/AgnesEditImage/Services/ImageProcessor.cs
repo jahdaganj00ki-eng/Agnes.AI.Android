@@ -10,6 +10,7 @@ namespace AgnesEditImage.Services;
 
 public static class ImageProcessor
 {
+#pragma warning disable CS8603
     public static (int Width, int Height)? ImageDimensions(byte[] bytes)
     {
         if (bytes == null || bytes.Length == 0) return null;
@@ -85,4 +86,5 @@ public static class ImageProcessor
     {
         Timeout = TimeSpan.FromSeconds(60)
     };
+#pragma warning restore CS8603
 }

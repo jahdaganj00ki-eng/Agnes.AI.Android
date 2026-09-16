@@ -14,6 +14,7 @@ namespace AgnesEditImage.ViewModels;
 public partial class EditImageViewModel : ObservableObject
 {
     private readonly SettingsService _settingsService;
+    private readonly Logger _logger = new();
     private AgnesApi _api;
 
     [ObservableProperty]
@@ -54,11 +55,13 @@ public partial class EditImageViewModel : ObservableObject
         _savedApiKey = settings.ApiKey;
         _savedBaseUrl = settings.BaseUrl;
         _apiKeyConfigured = !string.IsNullOrWhiteSpace(settings.ApiKey);
+        _logger.Info("EditImageViewModel initialized. ApiKeyConfigured=" + _apiKeyConfigured);
     }
 
     [RelayCommand]
     private void AddImages()
     {
+        Logger.Info("AddImages command triggered");
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Multiselect = true,
@@ -82,11 +85,12 @@ public partial class EditImageViewModel : ObservableObject
                 };
                 Attachments.Add(new LocalAttachment(bytes, mime));
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore unreadable files
+                Logger.Error("Failed to add image " + file + ": " + ex);
             }
         }
+        Logger.Info("AddImages completed. Attachments count=" + Attachments.Count);
     }
 
     [RelayCommand]
@@ -156,11 +160,13 @@ public partial class EditImageViewModel : ObservableObject
         SavedBaseUrl = newBase;
         ApiKeyConfigured = !string.IsNullOrWhiteSpace(newKey);
         LastSaved = true;
+        Logger.Info("UpdateSettings: ApiKeyConfigured=" + ApiKeyConfigured + ", BaseUrl=" + newBase);
     }
 
     [RelayCommand]
     private async Task Submit()
     {
+        Logger.Info("Submit command triggered");
         if (Attachments.Count == 0) return;
         var prompt = Input.Trim();
         if (prompt.Length == 0 || Busy) return;
@@ -194,8 +200,10 @@ public partial class EditImageViewModel : ObservableObject
             }).ToList();
 
             var t0 = Environment.TickCount;
+            Logger.Info("Submit: starting AnalyzeAndEnhanceAsync");
             var analysis = await EditImagePipeline.AnalyzeAndEnhanceAsync(_api, imageDataUris, prompt);
             var analysisSeconds = (Environment.TickCount - t0) / 1000.0;
+            Logger.Info("Submit: AnalyzeAndEnhanceAsync completed in " + analysisSeconds + "s");
 
             Items[1] = new ThoughtGroup($"{analysisSeconds:F2}", Skills: new List<LoadedSkill>(), Expanded: false);
             Items[3] = new AssistantText(analysis.ReplyDe);
@@ -205,8 +213,10 @@ public partial class EditImageViewModel : ObservableObject
             var firstLocal = images.OfType<LocalAttachment>().FirstOrDefault()?.Bytes;
             var dims = firstLocal != null ? ImageProcessor.ImageDimensions(firstLocal) : null;
             var ratio = dims.HasValue ? EditImagePipeline.PickRatio(dims.Value.Width, dims.Value.Height) : "3:4";
+            Logger.Info("Submit: starting GenerateEditAsync");
             var resultBytes = await EditImagePipeline.GenerateEditAsync(_api, imageDataUris, analysis, ratio, "2K", Mode);
             var genSeconds = (Environment.TickCount - t1) / 1000.0;
+            Logger.Info("Submit: GenerateEditAsync completed in " + genSeconds + "s");
 
             Items[2] = new ThoughtGroup($"{genSeconds:F2}", skillLoads, Expanded: true);
             Items[5] = new StatusBanner("Bearbeitung abgeschlossen.", Active: false);
@@ -215,6 +225,7 @@ public partial class EditImageViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _logger.Error("Submit failed: " + ex);
             if (Items.Count > 5)
             {
                 Items[5] = new StatusBanner("Bearbeitung fehlgeschlagen.", Active: false);

@@ -12,6 +12,7 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <ApplicationIcon>agnes.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -27,6 +28,12 @@
     <AGNES_API_KEY Condition="'$(AGNES_API_KEY)' == ''">$(AGNES_API_KEY)</AGNES_API_KEY>
     <AGNES_BASE_URL Condition="'$(AGNES_BASE_URL)' == ''">https://apihub.agnes-ai.com/v1</AGNES_BASE_URL>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="agnes.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
