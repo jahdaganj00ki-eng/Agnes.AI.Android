@@ -45,7 +45,7 @@ the references faithfully.
 POSE AND CAMERA RULES (apply to every rewrite, no exceptions):
 - The person must keep the same camera angle and framing as the reference
   image(s). Never rotate the subject to a full side profile.
-- Keep the body turned only slightly to one side: about 25 to 35 degrees from
+- Keep the body turned only slightly to one side: about 15 to 25 degrees from
   the camera. A full frontal pose is NOT desired; prefer a natural quarter turn.
 - Weight shift: let the weight rest softly on one leg with a natural, moderate
   hip accent. No exaggerated hip thrust, no pronounced contrapposto, no
@@ -193,7 +193,7 @@ suspend fun generateEdit(
             "Keep the arms in relaxed, natural positions. Do NOT raise both arms above shoulder height. " +
             "Do NOT lift the arms above the head. At most one arm may be slightly raised. " +
             "Avoid any gymnastic, theatrical, or exaggerated arm positions. " +
-            "Do NOT make the person fully frontal; keep a natural quarter turn, roughly 25 to 35 degrees " +
+            "Do NOT make the person fully frontal; keep a natural quarter turn, roughly 15 to 25 degrees " +
             "from the camera, and never turn into a full side profile.\n\n${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
 
     for (attempt in 0..MAX_CONTENT_POLICY_RETRIES) {
