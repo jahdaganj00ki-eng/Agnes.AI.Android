@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using AgnesEditImage.Models;
+using AgnesEditImage.Services;
 
 namespace AgnesEditImage.Converters;
 
