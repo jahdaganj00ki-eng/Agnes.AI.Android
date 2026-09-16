@@ -55,4 +55,12 @@ public partial class MainWindow : Window
         Logger.Info("AttachUrl_Click triggered");
         _viewModel.AddImageUrlCommand.Execute(null);
     }
+
+    private void EditResult_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.DataContext is ResultImage result)
+        {
+            _viewModel.UseAsInputCommand.Execute(result.Bytes);
+        }
+    }
 }
