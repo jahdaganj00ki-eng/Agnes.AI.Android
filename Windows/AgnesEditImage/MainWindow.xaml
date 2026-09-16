@@ -91,6 +91,12 @@
       </Border>
     </DataTemplate>
 
+    <DataTemplate x:Key="PreviewTemplate" DataType="{x:Type m:Attachment}">
+      <Border Width="120" Height="120" CornerRadius="12" Margin="0,0,8,0" ClipToBounds="True" Background="{x:Static theme:ThemeColors.CardBackground2}">
+        <Image Stretch="Uniform" Source="{Binding Converter={x:Static conv:AttachmentToImageConverter.Instance}}"/>
+      </Border>
+    </DataTemplate>
+
     <conv:ChatItemTemplateSelector x:Key="ChatSelector"
       UserMessageTemplate="{StaticResource UserMessageTemplate}"
       ThoughtGroupTemplate="{StaticResource ThoughtGroupTemplate}"
@@ -104,6 +110,7 @@
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
@@ -116,23 +123,31 @@
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <Button Grid.Column="0" Width="32" Height="32" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="16" Padding="0" Click="Menu_Click">
-          <Image Source="/Images/biglogo.png" Width="20" Height="20"/>
-        </Button>
-        <TextBlock Grid.Column="1" Text="Agnes AI Studio" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="8,0,0,0"/>
+        <Image Grid.Column="0" Width="28" Height="28" Source="/Images/biglogo.png" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="Agnes AI Studio" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="10,0,0,0"/>
         <Button Grid.Column="2" Width="32" Height="32" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="18" Padding="0" Click="NewChat_Click">＋</Button>
       </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{x:Static theme:ThemeColors.AppBackground}">
+    <Border Grid.Row="1" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="10,0,10,6">
+      <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource PreviewTemplate}" Visibility="{Binding Attachments, Converter={x:Static conv:CollectionVisibilityConverter.Instance}}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+      </ItemsControl>
+    </Border>
+
+    <Border Grid.Row="2" Background="{x:Static theme:ThemeColors.AppBackground}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,4">
         <ItemsControl ItemsSource="{Binding Items}" ItemTemplateSelector="{StaticResource ChatSelector}"/>
       </ScrollViewer>
     </Border>
 
-    <Border Grid.Row="2" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="10,8">
+    <Border Grid.Row="3" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="10,8">
       <StackPanel>
-        <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource AttachmentThumbnailTemplate}" Margin="0,0,0,8">
+        <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource AttachmentThumbnailTemplate}" Margin="0,0,0,8" Visibility="{Binding Attachments, Converter={x:Static conv:CollectionVisibilityConverter.Instance}}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <WrapPanel/>
