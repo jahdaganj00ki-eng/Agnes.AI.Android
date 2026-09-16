@@ -18,14 +18,28 @@ Edit the photo exactly according to the provided instruction and change AS LITTL
 AS POSSIBLE. Only the elements the user explicitly mentions may change.
 Never stretch, squash, widen, or narrow the subject or the background.
 Preserve the original aspect ratio, body proportions, identity, face, pose,
-clothing that is not mentioned, background, lighting, and composition."""
+clothing that is not mentioned, background, lighting, and composition.
+
+HARD POSE RULE (no exceptions):
+- The person's arms must stay at or below shoulder level.
+- Never raise either arm above the shoulder, even if the user says "natural pose"
+  or "relaxed". In this app, "natural" means arms low or at most resting near
+  the hips/shoulders, but not raised upward.
+- Do not invent raised-arm poses, waving poses, or overhead gestures."""
 
     const val REFERENCE_IMAGE = """You are the "reference-image" skill.
 The input image(s) are the single source of truth (reference). The output must
 keep the same person identity, same face, same body shape and proportions, same
 camera angle and same framing as the references. Only apply the requested edit
 on top of them. Do not invent new elements, do not crop, and do not change the
-aspect ratio."""
+aspect ratio.
+
+HARD POSE RULE (no exceptions):
+- The person's arms must stay at or below shoulder level.
+- Never raise either arm above the shoulder, even if the user says "natural pose"
+  or "relaxed". In this app, "natural" means arms low or at most resting near
+  the hips/shoulders, but not raised upward.
+- Do not invent raised-arm poses, waving poses, or overhead gestures."""
 
     const val PROMPT_CRAFT = """You are the "image-prompt-craft" skill.
 Analyse the attached image(s) and the user's edit instruction, then rewrite the
@@ -47,6 +61,10 @@ POSE AND CAMERA RULES (apply to every rewrite, no exceptions):
 - Arms stay relaxed: at most ONE arm gesture (one hand near the hip, or lightly
   touching the hair). Never use both arms at once — two simultaneous gestures
   force the shoulders to twist and the body turns sideways.
+- HARD POSE RULE: the person's arms must stay at or below shoulder level.
+  Never raise either arm above the shoulder, even if the user says "natural pose"
+  or "relaxed". In this app, "natural" means arms low or at most resting near
+  the hips/shoulders, but not raised upward.
 - Keep the face and gaze toward the camera with a confident, inviting
   expression. A subtle smile is fine.
 
@@ -183,7 +201,9 @@ suspend fun generateEdit(
             "Do not change the person's identity, face, pose, body proportions, other clothing, background, " +
             "lighting, or composition unless the instruction explicitly asks for it. " +
             "Keep the original aspect ratio and proportions exactly — do not stretch, squash, widen, or narrow " +
-            "the subject or the background.\n\n${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
+            "the subject or the background. " +
+            "The person's arms must stay at or below shoulder level; never raise either arm above the shoulder.\n\n" +
+            "${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
 
     for (attempt in 0..MAX_CONTENT_POLICY_RETRIES) {
         val prompt = if (attempt == 0) finalPrompt else softenPrompt(finalPrompt, attempt)
