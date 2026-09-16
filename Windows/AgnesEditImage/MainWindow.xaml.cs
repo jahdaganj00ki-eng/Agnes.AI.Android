@@ -1,6 +1,8 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using AgnesEditImage.ViewModels;
+using AgnesEditImage.Models;
 using AgnesEditImage.Services;
 
 namespace AgnesEditImage;
