@@ -46,7 +46,7 @@ POSE AND CAMERA RULES (apply to every rewrite, no exceptions):
 - The person must keep the same camera angle and framing as the reference
   image(s). Never rotate the subject to a full side profile.
 - Keep the body turned only slightly to one side: about 25 to 35 degrees from
-  the camera. A full frontal pose is allowed only if the original is frontal.
+  the camera. A full frontal pose is NOT desired; prefer a natural quarter turn.
 - Weight shift: let the weight rest softly on one leg with a natural, moderate
   hip accent. No exaggerated hip thrust, no pronounced contrapposto, no
   theatrical pose. A confident, elegant stance is fine.
@@ -186,13 +186,15 @@ suspend fun generateEdit(
             identityClause +
             modeClause +
             " Preserve everything that is not explicitly mentioned in this instruction$preserveClause. " +
-            "Do not change the person's identity, face, pose, body proportions, other clothing, background, " +
+            "Do not change the person's identity, face, body proportions, other clothing, background, " +
             "lighting, or composition unless the instruction explicitly asks for it. " +
             "Keep the original aspect ratio and proportions exactly — do not stretch, squash, widen, or narrow " +
             "the subject or the background. " +
             "Keep the arms in relaxed, natural positions. Do NOT raise both arms above shoulder height. " +
             "Do NOT lift the arms above the head. At most one arm may be slightly raised. " +
-            "Avoid any gymnastic, theatrical, or exaggerated arm positions.\n\n${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
+            "Avoid any gymnastic, theatrical, or exaggerated arm positions. " +
+            "Do NOT make the person fully frontal; keep a natural quarter turn, roughly 25 to 35 degrees " +
+            "from the camera, and never turn into a full side profile.\n\n${Skills.IMAGE_GENERATION}\n\n${Skills.REFERENCE_IMAGE}"
 
     for (attempt in 0..MAX_CONTENT_POLICY_RETRIES) {
         val prompt = if (attempt == 0) finalPrompt else softenPrompt(finalPrompt, attempt)
