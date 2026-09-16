@@ -109,10 +109,10 @@ public partial class EditImageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveAttachment(int index)
+    private void RemoveAttachment(Attachment attachment)
     {
-        if (index < 0 || index >= Attachments.Count) return;
-        Attachments.RemoveAt(index);
+        if (attachment is null) return;
+        Attachments.Remove(attachment);
     }
 
     [RelayCommand]

@@ -7,7 +7,9 @@
         xmlns:theme="clr-namespace:AgnesEditImage.Theme"
         Title="Agnes Edit Image" Height="720" Width="480"
         Background="{x:Static theme:ThemeColors.AppBackground}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI"
+        FontSize="14">
   <Window.Resources>
     <DataTemplate x:Key="UserMessageTemplate" DataType="{x:Type m:UserMessage}">
       <Border Background="{x:Static theme:ThemeColors.UserBubble}" CornerRadius="18,18,4,18" Padding="12,8" MaxWidth="320" HorizontalAlignment="Right" Margin="0,4,0,4">
@@ -72,6 +74,21 @@
       </Border>
     </DataTemplate>
 
+    <DataTemplate x:Key="AttachmentThumbnailTemplate" DataType="{x:Type m:Attachment}">
+      <Border Width="56" Height="56" CornerRadius="10" Margin="0,0,8,0" ClipToBounds="True" Background="{x:Static theme:ThemeColors.CardBackground2}">
+        <Grid>
+          <Image Stretch="UniformToFill">
+            <Image.Style>
+              <Style TargetType="Image">
+                <Setter Property="Source" Value="{Binding Converter={x:Static conv:AttachmentToImageConverter.Instance}}"/>
+              </Style>
+            </Image.Style>
+          </Image>
+          <Button Content="✕" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2" Padding="0" Background="#CC000000" Foreground="White" BorderThickness="0" FontSize="10" FontWeight="Bold" Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <conv:ChatItemTemplateSelector x:Key="ChatSelector"
       UserMessageTemplate="{StaticResource UserMessageTemplate}"
       ThoughtGroupTemplate="{StaticResource ThoughtGroupTemplate}"
@@ -83,36 +100,49 @@
   </Window.Resources>
 
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="8,4">
+    <Border DockPanel.Dock="Top" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="12,10">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <Button Content="☰" Width="40" Height="40" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="20" Click="Menu_Click"/>
-        <TextBlock Text="{Binding Title}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontWeight="Bold" VerticalAlignment="Center" Margin="12,0,0,0"/>
-        <Button Content="＋" Width="40" Height="40" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="20" HorizontalAlignment="Right" Click="NewChat_Click"/>
+        <Button Content="☰" Width="36" Height="36" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="18" Click="Menu_Click" Padding="0"/>
+        <TextBlock Text="{Binding Title}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,0,0" FontSize="16"/>
+        <Button Content="＋" Width="36" Height="36" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" FontSize="18" HorizontalAlignment="Right" Padding="0" Click="NewChat_Click"/>
       </StackPanel>
     </Border>
 
-    <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto" Height="Auto">
+    <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto" Height="Auto" Padding="12,0">
       <ItemsControl ItemsSource="{Binding Items}" ItemTemplateSelector="{StaticResource ChatSelector}"/>
     </ScrollViewer>
 
-    <Border DockPanel.Dock="Bottom" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="8">
+    <Border DockPanel.Dock="Bottom" Background="{x:Static theme:ThemeColors.AppBackground}" Padding="12">
       <StackPanel>
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-          <ToggleButton Content="Edit Image" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=edit}" Command="{Binding SetModeCommand}" CommandParameter="edit" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,4,0"/>
-          <ToggleButton Content="Full Body" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=full_body}" Command="{Binding SetModeCommand}" CommandParameter="full_body" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,4,0"/>
-          <ToggleButton Content="Try-On" IsEnabled="False" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextMuted}" Margin="0,0,4,0" ToolTip="Demnächst verfügbar"/>
-          <ToggleButton Content="Enhance" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=enhance}" Command="{Binding SetModeCommand}" CommandParameter="enhance" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,4,0"/>
-          <ToggleButton Content="Black BG" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=black_bg}" Command="{Binding SetModeCommand}" CommandParameter="black_bg" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}"/>
-        </StackPanel>
+        <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource AttachmentThumbnailTemplate}" Margin="0,0,0,10">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
 
-        <Border Background="{x:Static theme:ThemeColors.CardBackground}" CornerRadius="24" Padding="8">
-          <StackPanel Orientation="Horizontal">
-            <Button Content="📎" Width="40" Height="40" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Click="Attach_Click"/>
-            <Button Content="🔗" Width="40" Height="40" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Click="AttachUrl_Click"/>
-            <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" Height="40" Background="Transparent" BorderThickness="0" Foreground="{x:Static theme:ThemeColors.TextPrimary}" VerticalContentAlignment="Center" Margin="8,0"/>
-            <Button Content="➤" Width="40" Height="40" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Command="{Binding SubmitCommand}"/>
-          </StackPanel>
+        <Border Background="{x:Static theme:ThemeColors.CardBackground}" CornerRadius="20" Padding="4">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="📎" Width="36" Height="36" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Click="Attach_Click" Padding="0" ToolTip="Bild hinzufügen"/>
+            <TextBox Grid.Column="1" Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" Height="40" Background="Transparent" BorderThickness="0" Foreground="{x:Static theme:ThemeColors.TextPrimary}" VerticalContentAlignment="Center" Margin="8,0" Padding="4,0"/>
+            <Button Grid.Column="2" Content="➤" Width="36" Height="36" Background="Transparent" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Command="{Binding SubmitCommand}" Padding="0" ToolTip="Senden"/>
+          </Grid>
         </Border>
+
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+          <ToggleButton Content="Edit Image" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=edit}" Command="{Binding SetModeCommand}" CommandParameter="edit" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,6,0" Padding="14,8" BorderThickness="0" CornerRadius="10"/>
+          <ToggleButton Content="Full Body" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=full_body}" Command="{Binding SetModeCommand}" CommandParameter="full_body" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,6,0" Padding="14,8" BorderThickness="0" CornerRadius="10"/>
+          <ToggleButton Content="Try-On" IsEnabled="False" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextMuted}" Margin="0,0,6,0" Padding="14,8" BorderThickness="0" CornerRadius="10" ToolTip="Demnächst verfügbar"/>
+          <ToggleButton Content="Enhance" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=enhance}" Command="{Binding SetModeCommand}" CommandParameter="enhance" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Margin="0,0,6,0" Padding="14,8" BorderThickness="0" CornerRadius="10"/>
+          <ToggleButton Content="Black BG" IsChecked="{Binding Mode, Converter={x:Static conv:ModeToBoolConverter.Instance}, ConverterParameter=black_bg}" Command="{Binding SetModeCommand}" CommandParameter="black_bg" Background="{x:Static theme:ThemeColors.CardBackground}" Foreground="{x:Static theme:ThemeColors.TextPrimary}" Padding="14,8" BorderThickness="0" CornerRadius="10"/>
+        </StackPanel>
       </StackPanel>
     </Border>
   </DockPanel>
