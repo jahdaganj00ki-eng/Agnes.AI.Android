@@ -1,3 +1,5 @@
+using AgnesEditImage.Models;
+
 namespace AgnesEditImage.Services;
 
 public static class Skills
