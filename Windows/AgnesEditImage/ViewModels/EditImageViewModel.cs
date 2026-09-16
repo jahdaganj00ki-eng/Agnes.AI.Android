@@ -14,7 +14,6 @@ namespace AgnesEditImage.ViewModels;
 public partial class EditImageViewModel : ObservableObject
 {
     private readonly SettingsService _settingsService;
-    private readonly Logger _logger = new();
     private AgnesApi _api;
 
     [ObservableProperty]
@@ -55,7 +54,7 @@ public partial class EditImageViewModel : ObservableObject
         _savedApiKey = settings.ApiKey;
         _savedBaseUrl = settings.BaseUrl;
         _apiKeyConfigured = !string.IsNullOrWhiteSpace(settings.ApiKey);
-        _logger.Info("EditImageViewModel initialized. ApiKeyConfigured=" + _apiKeyConfigured);
+        Logger.Info("EditImageViewModel initialized. ApiKeyConfigured=" + _apiKeyConfigured);
     }
 
     [RelayCommand]
@@ -225,7 +224,7 @@ public partial class EditImageViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.Error("Submit failed: " + ex);
+            Logger.Error("Submit failed: " + ex);
             if (Items.Count > 5)
             {
                 Items[5] = new StatusBanner("Bearbeitung fehlgeschlagen.", Active: false);
